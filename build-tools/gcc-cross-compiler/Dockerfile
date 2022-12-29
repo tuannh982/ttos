@@ -1,3 +1,4 @@
+ARG TARGET
 FROM ubuntu:jammy
 
 # build dependencies
@@ -23,7 +24,7 @@ RUN tar -xf binutils-2.39.tar.gz && mv binutils-2.39 src-binutils
 RUN tar -xf gcc-12.2.0.tar.gz && mv gcc-12.2.0 src-gcc
 # env
 ENV PREFIX="/usr/local/cross"
-ENV TARGET=i686-elf
+ENV TARGET=$TARGET
 ENV PATH="$PREFIX/bin:$PATH"
 # buid
 COPY ./build.sh /src
