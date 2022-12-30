@@ -1,5 +1,6 @@
-ARG TARGET
 FROM ubuntu:jammy
+
+ARG BUILD_TARGET
 
 # build dependencies
 RUN apt update
@@ -12,7 +13,10 @@ RUN apt install -yq \
     libgmp3-dev \
     libmpc-dev \
     libmpfr-dev \
-    texinfo
+    texinfo \
+    file \
+    grub-common \
+    xorriso
 
 # install gcc cross compiler
 WORKDIR /src
@@ -24,7 +28,7 @@ RUN tar -xf binutils-2.39.tar.gz && mv binutils-2.39 src-binutils
 RUN tar -xf gcc-12.2.0.tar.gz && mv gcc-12.2.0 src-gcc
 # env
 ENV PREFIX="/usr/local/cross"
-ENV TARGET=$TARGET
+ENV TARGET=$BUILD_TARGET
 ENV PATH="$PREFIX/bin:$PATH"
 # buid
 COPY ./build.sh /src
