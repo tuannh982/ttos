@@ -41,17 +41,21 @@ multiboot_header:
     .long 32
 
 # ------------------------------------------------------
+.section .bss
+
+.align 16
+stack_bottom:
+.skip STACK_SIZE
+stack_top:
+# ------------------------------------------------------
 .section .text
 
 .global _start
 .type _start, @function
 _start:
-    /* Initialize the stack pointer. */
-    movl    $(stack + STACK_SIZE), %esp
-
-    /* Reset EFLAGS. */
-    pushl   $0
-    popf
+    /* Setup stack */
+    movl $stack_top, %esp
+    movl $stack_top, %ebp
 
     /* Push the pointer to the Multiboot information structure. */
     pushl   %ebx
@@ -59,7 +63,7 @@ _start:
     pushl   %eax
 
     /* Now enter the C main function... */
-    call    lmain
+    call    loader_main
 
     /* Halt. */
     pushl   $halt_message
@@ -71,5 +75,4 @@ loop:   hlt
 halt_message:
     .asciz  "Halted."
 
-    /* Our stack area. */
-    .comm   stack, STACK_SIZE
+.size _start, . - _start

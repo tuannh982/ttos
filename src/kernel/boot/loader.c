@@ -42,7 +42,7 @@ static int ypos;
 static volatile unsigned char *video;
 
 /* Forward declarations. */
-void lmain(unsigned long magic, unsigned long addr);
+void loader_main(unsigned long magic, unsigned long addr);
 static void cls(void);
 static void itoa(char *buf, int base, int d);
 static void putchar(int c);
@@ -50,7 +50,7 @@ void printf(const char *format, ...);
 
 /* Check if MAGIC is valid and print the Multiboot information structure
    pointed by ADDR. */
-void lmain(unsigned long magic, unsigned long addr)
+void loader_main(unsigned long magic, unsigned long addr)
 {
     multiboot_info_t *mbi;
 
