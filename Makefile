@@ -1,28 +1,33 @@
-SOURCE = src/kernel
-SOURCE_INCLUDE = $(SOURCE)/include
-TARGET = target
+KERNEL_SOURCE_PATH = src/kernel
+
+KERNEL_OBJS = \
+	$(KERNEL_SOURCE_PATH)/boot/boot.S.o \
+	$(KERNEL_SOURCE_PATH)/boot/loader.c.o
+
+KERNEL_LINK_LIST = \
+	$(KERNEL_OBJS)
 
 CC = i686-elf-gcc
-CFLAGS = -std=gnu99 -ffreestanding -O2 -Wall -Wextra
+CFLAGS = -I. -I $(KERNEL_SOURCE_PATH)/include -std=gnu99 -ffreestanding -O2 -Wall -Wextra
+LDFLAGS = -nostdlib
 
 .PHONY: all clean run
+.SUFFIXES: .o .c .S
 
-boot.o:
-	mkdir -p $(TARGET)/boot
-	$(CC) $(CFLAGS) -I $(SOURCE_INCLUDE) -c $(SOURCE)/boot/boot.S -o $(TARGET)/boot/boot.o
+$(KERNEL_SOURCE_PATH)/%.c.o: $(KERNEL_SOURCE_PATH)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
-loader.o:
-	mkdir -p $(TARGET)/boot
-	$(CC) $(CFLAGS) -I $(SOURCE_INCLUDE) -c $(SOURCE)/boot/loader.c -o $(TARGET)/boot/loader.o
+$(KERNEL_SOURCE_PATH)/%.S.o: $(KERNEL_SOURCE_PATH)/%.S
+	$(CC) $(CFLAGS) -c $< -o $@
 
-loader.bin: boot.o loader.o
-	$(CC) -T $(SOURCE)/boot/linker.ld -o $(TARGET)/boot/loader.bin -ffreestanding -O2 -nostdlib $(TARGET)/boot/boot.o $(TARGET)/boot/loader.o -lgcc
+os.bin: $(KERNEL_OBJS) 
+	$(CC) -T $(KERNEL_SOURCE_PATH)/linker.ld -o $@ $(CFLAGS) $(LDFLAGS) $(KERNEL_LINK_LIST)
+	grub-file --is-x86-multiboot os.bin
 
-all: loader.bin
+all: os.bin
 
 run:
-	qemu-system-x86_64 -kernel $(TARGET)/boot/loader.bin
+	qemu-system-x86_64 -kernel os.bin
 
 clean:
-	rm -rf target/*
-	
+	rm -rf $(KERNEL_OBJS)
