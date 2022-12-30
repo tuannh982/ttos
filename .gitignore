@@ -1,0 +1,6 @@
+.vscode
+iso
+target
+*.iso
+*.o
+*.bin

@@ -16,5 +16,5 @@ SCRIPT_DIR=$(script_dir)
 IFS=' ' read -ra TARGETS <<< $(cat "$SCRIPT_DIR/TARGETS.txt")
 for TARGET in "${TARGETS[@]}"; do
     echo "building $TARGET cross compiler"
-    docker build $SCRIPT_DIR/gcc-cross-compiler --build-arg TARGET=$TARGET -t gcc-cross-compiler:$TARGET
+    docker build --platform=linux/amd64 $SCRIPT_DIR/gcc-cross-compiler --build-arg BUILD_TARGET=$TARGET -t gcc-cross-compiler:$TARGET
 done
