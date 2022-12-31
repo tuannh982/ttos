@@ -16,6 +16,7 @@ RUN apt install -yq \
     texinfo \
     file \
     grub-common \
+    grub-pc-bin \
     xorriso
 
 # install gcc cross compiler
