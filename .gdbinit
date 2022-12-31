@@ -1,3 +1,3 @@
 set architecture i386:x86-64
-file target/loader.bin
+file target/bootstrap.bin
 target remote localhost:1234
