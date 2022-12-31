@@ -1,10 +1,10 @@
 #define ASM_FILE 1
-#include <multiboot.h>
+#include <boot/multiboot.h>
 
 /* The size of our stack (16KB). */
 #define STACK_SIZE 0x4000
 
-#define MULTIBOOT_HEADER_FLAGS MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_VIDEO_MODE
+#define MULTIBOOT_HEADER_FLAGS MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO
 
 # ------------------------------------------------------
 .section .multiboot
@@ -36,9 +36,9 @@ multiboot_header:
     .long 0
     .long 0       
     .long 0
-    .long 1024
-    .long 768
-    .long 32
+    .long 0
+    .long 0
+    .long 0
 
 # ------------------------------------------------------
 .section .bss
@@ -50,9 +50,13 @@ stack_top:
 # ------------------------------------------------------
 .section .text
 
+.code32
+
 .global _start
 .type _start, @function
 _start:
+    /* Clear interrupts */
+    cli
     /* Setup stack */
     movl $stack_top, %esp
     movl $stack_top, %ebp
@@ -64,15 +68,8 @@ _start:
 
     /* Now enter the C main function... */
     call    loader_main
-
-    /* Halt. */
-    pushl   $halt_message
-    call    printf
     
 loop:   hlt
     jmp     loop
-
-halt_message:
-    .asciz  "Halted."
 
 .size _start, . - _start

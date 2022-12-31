@@ -9,7 +9,8 @@ CLDFLAGS:=$(CLDFLAGS) -ffreestanding -O2 -nostdlib -lgcc
 
 LOADER_OBJS = \
 	boot/boot.S.o \
-	boot/loader.c.o
+	boot/vga.c.o \
+	boot/loader.c.o \
 
 .PHONY: all clean run-kernel run-iso
 .SUFFIXES: .o .c .S
