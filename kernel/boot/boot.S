@@ -1,10 +1,10 @@
 #define ASM_FILE 1
-#include <multiboot.h>
+#include <boot/multiboot.h>
 
 /* The size of our stack (16KB). */
 #define STACK_SIZE 0x4000
 
-#define MULTIBOOT_HEADER_FLAGS MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_VIDEO_MODE
+#define MULTIBOOT_HEADER_FLAGS MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO
 
 # ------------------------------------------------------
 .section .multiboot
@@ -36,9 +36,9 @@ multiboot_header:
     .long 0
     .long 0       
     .long 0
-    .long 1024
-    .long 768
-    .long 32
+    .long 0
+    .long 0
+    .long 0
 
 # ------------------------------------------------------
 .section .bss
@@ -50,9 +50,13 @@ stack_top:
 # ------------------------------------------------------
 .section .text
 
+.code32
+
 .global _start
 .type _start, @function
 _start:
+    /* Clear interrupts */
+    cli
     /* Setup stack */
     movl $stack_top, %esp
     movl $stack_top, %ebp
@@ -62,17 +66,42 @@ _start:
     /* Push the magic value. */
     pushl   %eax
 
+    /* init the loader */
+    call    loader_init
+
+    /* check multiboot bootloader magic */
+    call    check_multiboot
+
+    # TODO check cpuid
+
+    # TODO check long mode
+
     /* Now enter the C main function... */
     call    loader_main
 
-    /* Halt. */
-    pushl   $halt_message
-    call    printf
+halted:
+    pushl   $halted_message
+    call    vga_printf
     
-loop:   hlt
-    jmp     loop
+hlt_loop:   
+    hlt
+    jmp     hlt_loop
 
-halt_message:
-    .asciz  "Halted."
+check_multiboot:
+    /* compare the magic value with the previous saved eax */
+    cmp     $MULTIBOOT_BOOTLOADER_MAGIC, 4(%esp)
+    jne     no_multiboot
+    ret
+no_multiboot:
+    pushl   $no_multiboot_message
+    call    vga_printf
+    jmp     halted
+
+# strings
+halted_message:
+    .asciz  "Halted"
+
+no_multiboot_message:
+    .asciz  "Multiboot bootloader magic mismatched"
 
 .size _start, . - _start
