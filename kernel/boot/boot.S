@@ -50,6 +50,7 @@ stack_top:
 # ------------------------------------------------------
 .section .text
 
+/* 32bit mode */
 .code32
 
 .global _start
@@ -66,17 +67,14 @@ _start:
     /* Push the magic value. */
     pushl   %eax
 
-    /* init the loader */
     call    loader_init
-
-    /* check multiboot bootloader magic */
     call    check_multiboot
+    call    check_long_mode
+    # TODO setup long mode
 
-    # TODO check cpuid
-
-    # TODO check long mode
-
-    /* Now enter the C main function... */
+    /* switch to 64bit mode */
+    # .code64
+    /* Calling the main loader */
     call    loader_main
 
 halted:
@@ -87,21 +85,68 @@ hlt_loop:
     hlt
     jmp     hlt_loop
 
+/* check multiboot routine */
 check_multiboot:
     /* compare the magic value with the previous saved eax */
-    cmp     $MULTIBOOT_BOOTLOADER_MAGIC, 4(%esp)
-    jne     no_multiboot
+    cmpl    $MULTIBOOT_BOOTLOADER_MAGIC, 4(%esp)
+    jne     _no_multiboot
     ret
-no_multiboot:
-    pushl   $no_multiboot_message
+    _no_multiboot:
+        pushl   $no_multiboot_message
+        jmp     print_and_halted
+
+/* check long mode routine */
+check_long_mode:
+    /* https://en.wikipedia.org/wiki/FLAGS_register */
+    check_cpu_id:
+        /* try flip ID bit of FLAGS register*/
+        pushfl
+        popl    %eax
+        movl    %eax, %ecx
+        xorl    $(1 << 21), %eax
+        pushl   %eax
+        popfl
+        /* re-read to confirm we've flip ID bit */
+        pushfl
+        popl    %eax
+        pushl   %ecx
+        /* revert back to original state */
+        popfl
+        cmpl    %eax, %ecx
+        je      _cpuid_not_supported
+    
+    /* https://en.wikipedia.org/wiki/CPUID */
+    check_cpuid_long_mode:
+        /* Get extended function information by calling CPUID with EAX = 80000000h */
+        movl    $0x80000000, %eax
+        cpuid
+        cmpl    $0x80000001, %eax
+        /* if eax is smaller than $0x80000001, then long mode is not supported */
+        jb      _no_long_mode
+        
+    ret
+    _cpuid_not_supported:
+        pushl   $cpuid_not_supported_message
+        jmp     print_and_halted
+    _no_long_mode:
+        pushl   $no_long_mode_message
+        jmp     print_and_halted
+
+print_and_halted:
     call    vga_printf
     jmp     halted
 
 # strings
 halted_message:
-    .asciz  "Halted"
+    .asciz  "Halted\n"
 
 no_multiboot_message:
-    .asciz  "Multiboot bootloader magic mismatched"
+    .asciz  "Multiboot bootloader magic mismatched\n"
+
+cpuid_not_supported_message:
+    .asciz  "CPUID feature not supported\n"
+
+no_long_mode_message:
+    .asciz  "Long Mode not supported\n"
 
 .size _start, . - _start
