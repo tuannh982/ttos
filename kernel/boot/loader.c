@@ -1,29 +1,27 @@
 #include <boot/multiboot.h>
 #include <boot/vga.h>
+#include <boot/vga_utils.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
-void loader_main(unsigned long magic, unsigned long addr);
+void loader_main(uint32_t magic, uint32_t addr);
+void loader_init();
 
-void loader_main(unsigned long magic, unsigned long addr)
+void loader_init()
+{
+    /* Clear the screen. */
+    vga_clear();
+}
+
+void loader_main(uint32_t magic, uint32_t addr)
 {
     multiboot_info_t *mbi;
 
-    /* Clear the screen. */
-    vga_clear();
+    vga_printf("Magic = 0x%x\n", magic);
 
-    /* Am I booted by a Multiboot-compliant boot loader? */
-    if (magic != MULTIBOOT_BOOTLOADER_MAGIC)
-    {
-        vga_putchar('E');
-        vga_putchar('R');
-        vga_putchar('R');
-        // TODO error
-        return;
-    }
-
-    /* Set MBI to the address of the Multiboot information structure. */
     mbi = (multiboot_info_t *)addr;
 
-    vga_putchar('O');
-    vga_putchar('K');
+    vga_printf("Boot OK\n");
     // TODO
 }

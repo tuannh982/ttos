@@ -66,10 +66,42 @@ _start:
     /* Push the magic value. */
     pushl   %eax
 
+    /* init the loader */
+    call    loader_init
+
+    /* check multiboot bootloader magic */
+    call    check_multiboot
+
+    # TODO check cpuid
+
+    # TODO check long mode
+
     /* Now enter the C main function... */
     call    loader_main
+
+halted:
+    pushl   $halted_message
+    call    vga_printf
     
-loop:   hlt
-    jmp     loop
+hlt_loop:   
+    hlt
+    jmp     hlt_loop
+
+check_multiboot:
+    /* compare the magic value with the previous saved eax */
+    cmp     $MULTIBOOT_BOOTLOADER_MAGIC, 4(%esp)
+    jne     no_multiboot
+    ret
+no_multiboot:
+    pushl   $no_multiboot_message
+    call    vga_printf
+    jmp     halted
+
+# strings
+halted_message:
+    .asciz  "Halted"
+
+no_multiboot_message:
+    .asciz  "Multiboot bootloader magic mismatched"
 
 .size _start, . - _start

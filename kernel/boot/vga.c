@@ -65,6 +65,7 @@ void vga_putchar_with_color(char c, vga_color_t color)
     }
 }
 
-void vga_putchar(char c) {
+void vga_putchar(char c)
+{
     vga_putchar_with_color(c, video_entry_color);
 }
