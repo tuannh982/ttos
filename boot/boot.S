@@ -123,7 +123,13 @@ check_long_mode:
         cmpl    $0x80000001, %eax
         /* if eax is smaller than $0x80000001, then long mode is not supported */
         jb      _no_long_mode
-        
+        /* Get Extended Processor Info and Feature Bits */
+        movl    $0x80000001, %eax
+        cpuid
+        /* check Long mode bit on edx */
+        testl   $(1 << 29), %edx
+        jz      _no_long_mode
+
     ret
     _cpuid_not_supported:
         pushl   $cpuid_not_supported_message
