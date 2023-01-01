@@ -1,6 +1,9 @@
 #define ASM_FILE 1
 #include <boot/multiboot.h>
 #include <boot/pgtable.h>
+#include <boot/gdt.h>
+
+.code32
 
 # ------------------------------------------------------
 .section .multiboot
@@ -40,8 +43,9 @@ multiboot_header:
 # ------------------------------------------------------
 .section .bss
 
-.align 4096
+/* Page tables */
 /* 64bit paging, 4KB per page, https://wiki.osdev.org/Page_Tables */
+.align 4096
 page_table_pml4:
 .skip 4096
 page_table_pdp:
@@ -51,19 +55,19 @@ page_table_pd:
 page_table_pt:
 .skip 4096
 
+/* Stack */
 .align 16
 /* The size of our stack (16KB). */
 #define STACK_SIZE 0x4000
 stack_bottom:
 .skip STACK_SIZE
 stack_top:
+
 # ------------------------------------------------------
 .section .text
 
-/* 32bit mode */
-.code32
-
 .global _start
+.global _start64
 .type _start, @function
 _start:
     /* Clear interrupts */
@@ -78,15 +82,17 @@ _start:
     pushl   %eax
 
     call    loader_init
+    
     call    check_multiboot
     call    check_long_mode
-    call    enter_long_mode
-    # TODO setup GDT
 
-    /* switch to 64bit mode */
-    # .code64
-    /* Calling the main loader */
-    call    loader_main
+    call    enter_long_mode
+
+    /* Loading The Global Descriptor Table */
+    lgdt    gdt64_pointer
+
+    /* perform a long jump */
+    ljmp    $8, $_start64
 
 halted:
     pushl   $halted_message
@@ -129,16 +135,16 @@ check_long_mode:
     /* https://en.wikipedia.org/wiki/CPUID */
     check_cpuid_long_mode:
         /* Get extended function information by calling CPUID with EAX = 80000000h */
-        movl    $0x80000000, %eax
+        mov     $0x80000000, %eax
         cpuid
-        cmpl    $0x80000001, %eax
+        cmp     $0x80000001, %eax
         /* if eax is smaller than $0x80000001, then long mode is not supported */
         jb      _no_long_mode
         /* Get Extended Processor Info and Feature Bits */
-        movl    $0x80000001, %eax
+        mov     $0x80000001, %eax
         cpuid
         /* check Long mode bit on edx */
-        testl   $(1 << 29), %edx
+        test    $(1 << 29), %edx
         jz      _no_long_mode
 
     ret
@@ -165,65 +171,82 @@ enter_long_mode:
 
     /* Disable paging */
     cr0_disable_paging:
-        movl    %cr0, %eax
-        andl    $(~(1 << CR0_BIT_ENABLE_PAGING)), %eax
-        movl    %eax, %cr0
+        mov     %cr0, %eax
+        and     $(~(1 << CR0_BIT_ENABLE_PAGING)), %eax
+        mov     %eax, %cr0
     
     /* Setup new page tables */
     setup_page_tables:
         /* write first P3 (PDP) entry to P4 (PML4) table */
-        movl    $page_table_pdp, %eax
-        orl     $(PAGE_PRESENT | PAGE_RW), %eax
-        movl    %eax, page_table_pml4
+        mov     $page_table_pdp, %eax
+        or      $(PAGE_PRESENT | PAGE_RW), %eax
+        mov     %eax, page_table_pml4
         /* write first P2 (PD) entry to P3 (PDP) table */
-        movl    $page_table_pd, %eax
-        orl     $(PAGE_PRESENT | PAGE_RW), %eax
-        movl    %eax, page_table_pdp
+        mov     $page_table_pd, %eax
+        or      $(PAGE_PRESENT | PAGE_RW), %eax
+        mov     %eax, page_table_pdp
         /* write first P1 (PT) entry to P2 (PD) table */
-        movl    $page_table_pt, %eax
-        orl     $(PAGE_PRESENT | PAGE_RW), %eax
-        movl    %eax, page_table_pd
+        mov     $page_table_pt, %eax
+        or      $(PAGE_PRESENT | PAGE_RW), %eax
+        mov     %eax, page_table_pd
 
         /* map P1 (PT) table entries */
         map_pt_table:
-            movl    $page_table_pt, %ebx
-            movl    $0, %ecx
+            /* P1 table, don't enable HUGEPAGE bit */
+            mov     $(PAGE_PRESENT | PAGE_RW), %eax
+            mov     $page_table_pt, %ebx
+            mov     $0, %ecx
             /* do a loop to map P1 (PT) table entries */
             map_pt_table_loop:
+                mov     %eax, (%ebx)
                 /* 4096 */
-                movl    $0x1000, %eax
-                /* P1 table, don't enable HUGEPAGE bit */
-                orl     $(PAGE_PRESENT | PAGE_RW), %eax 
-                movl    %eax, (%ebx)
+                add     $0x1000, %eax
                 /* loop unti we've filled 512 entries, or 2MB */
-                addl    $0x8, %ebx
-                incl    %ecx
-                cmpl    $512, %ecx
+                add     $0x8, %ebx
+                inc     %ecx
+                cmp     $512, %ecx
                 jne     map_pt_table_loop
 
     /* Set the PAE enable bit in CR4 */
     cr4_enable_pae:
-        movl    %cr4, %eax
-        orl     (1 << CR4_BIT_PAE), %eax
-        movl    %eax, %cr4
+        mov    %cr4, %eax
+        bts     $CR4_BIT_PAE, %eax
+        mov    %eax, %cr4
 
     /* Load CR3 with the physical address of the PML4 (Level 4 Page Map) */
     cr3_load_page_table:
-        movl    $page_table_pml4, %eax
-        movl    %eax, %cr3
+        mov     $page_table_pml4, %eax
+        mov     %eax, %cr3
 
     /* Enable long mode by setting the LME flag (bit 8) in MSR 0xC0000080 (aka EFER) */
     msr_enable_long_mode:
-        movl    $0xC0000080, %ecx
+        mov     $0xC0000080, %ecx
         rdmsr
-        orl     $(1 << EFER_BIT_LME), %eax
+        bts     $EFER_BIT_LME, %eax
         wrmsr
 
     /* Enable paging */
     cr0_enable_paging:
-        movl    %cr0, %eax
-        orl     $(1 << CR0_BIT_ENABLE_PAGING), %eax
-        movl    %eax, %cr0
+        mov     %cr0, %eax
+        bts     $CR0_BIT_ENABLE_PAGING, %eax
+        mov     %eax, %cr0
+
+    ret
+
+# ------------------------------------------------------
+.align 16
+gdt64:
+    .quad 0
+gdt64_code_segment:
+    .quad GDT_SEGMENT_DESCRIPTOR_ACCESS_E | GDT_SEGMENT_DESCRIPTOR_ACCESS_S | GDT_SEGMENT_DESCRIPTOR_ACCESS_P | GDT_SEGMENT_DESCRIPTOR_FLAGS_L
+gdt64_end:
+.align 16
+gdt64_pointer:
+    .word gdt64_end - gdt64 - 1
+    .long gdt64
+    .long 0
+.align 16
+# ------------------------------------------------------
 
 print_and_halted:
     call    vga_printf
@@ -244,8 +267,40 @@ no_long_mode_message:
 
 .size _start, . - _start
 
-
 # ------------------------------------------------------
 .code64
 
 _start64:
+    /* Clear all segment registers */
+    clear_segment_registers:
+        mov     $0, %rax
+        mov     %ax, %ss
+        mov     %ax, %ds
+        mov     %ax, %es
+        mov     %ax, %fs
+        mov     %ax, %gs
+    
+    # Hello 64bit mode
+    push    %rax
+    push    %rcx
+    mov     $0xb8000, %rcx
+    mov     $0x2F492F532F4E2F49, %rax
+    mov     %rax, (%rcx)
+    add     $8, %rcx
+    mov     $0x2F362F202F452F44, %rax
+    mov     %rax, (%rcx)
+    add     $8, %rcx
+    mov     $0x2F542F492F422F34, %rax
+    mov     %rax, (%rcx)
+    add     $8, %rcx
+    mov     $0x2F542F4E2F452F20, %rax
+    mov     %rax, (%rcx)
+    add     $8, %rcx
+    mov     $0x2F592F52, %rax
+    mov     %rax, (%rcx)
+    pop     %rcx
+    pop     %rax
+
+hlt64_loop:   
+    hlt
+    jmp     hlt64_loop

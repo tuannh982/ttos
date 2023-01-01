@@ -41,18 +41,22 @@ static int ypos;
 static volatile unsigned char *video;
 
 /* Forward declarations. */
-void loader_main(unsigned long magic, unsigned long addr);
+void loader_init();
+void print_multiboot_info(unsigned long magic, multiboot_info_t *mbi);
 static void cls(void);
 static void itoa(char *buf, int base, int d);
 static void putchar(int c);
 void printf(const char *format, ...);
 
+void loader_init()
+{
+    /* Nothing */
+}
+
 /* Check if MAGIC is valid and print the Multiboot information structure
    pointed by ADDR. */
-void loader_main(unsigned long magic, unsigned long addr)
+void print_multiboot_info(unsigned long magic, multiboot_info_t *mbi)
 {
-    multiboot_info_t *mbi;
-
     /* Clear the screen. */
     cls();
 
@@ -62,9 +66,6 @@ void loader_main(unsigned long magic, unsigned long addr)
         printf("Invalid magic number: 0x%x\n", (unsigned)magic);
         return;
     }
-
-    /* Set MBI to the address of the Multiboot information structure. */
-    mbi = (multiboot_info_t *)addr;
 
     print_mbi_info(mbi);
 }

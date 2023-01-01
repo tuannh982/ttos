@@ -1,8 +1,8 @@
 CURRENT_DIR:=$(shell pwd)
 # emulator
 QEMU:=qemu-system-x86_64
-QEMU_OPTS:=$(QEMU_OPTS)
-QEMU_DEBUG_OPTS:=$(QEMU_OPTS) -s -S
+QEMU_OPTS:=$(QEMU_OPTS) -no-reboot -d int -D qemu.log
+QEMU_DEBUG_OPTS:=$(QEMU_OPTS) -s -S 
 # build envs
 BUILD_ENV_CONFIGURE_CMD:=docker run -d --platform linux/amd64 --rm -it -v $(CURRENT_DIR):$(CURRENT_DIR) -w $(CURRENT_DIR)
 BUILD_ENV_IMAGE:=gcc-cross-compiler
@@ -25,7 +25,7 @@ BOOT_OBJS = \
 	boot/boot.S.o \
 	boot/vga.c.o \
 	boot/vga_utils.c.o \
-	boot/loader.c.o \
+	boot/boot.c.o \
 
 .PHONY: all clean run-debug run-kernel run-iso
 .SUFFIXES: .o .c .S .cpp

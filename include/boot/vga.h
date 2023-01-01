@@ -1,5 +1,5 @@
-#ifndef VGA_H
-#define VGA_H
+#ifndef BOOT_VGA_H
+#define BOOT_VGA_H
 
 /* Hardware text mode color constants. */
 enum vga_color
