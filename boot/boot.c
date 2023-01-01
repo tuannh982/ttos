@@ -5,8 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-void loader_main(uint32_t magic, uint32_t addr);
 void loader_init();
+void print_multiboot_info(uint32_t magic, multiboot_info_t *mbi);
 
 void loader_init()
 {
@@ -14,14 +14,8 @@ void loader_init()
     vga_clear();
 }
 
-void loader_main(uint32_t magic, uint32_t addr)
+void print_multiboot_info(uint32_t magic, multiboot_info_t *mbi)
 {
-    multiboot_info_t *mbi;
-
-    vga_printf("Magic = 0x%x\n", magic);
-
-    mbi = (multiboot_info_t *)addr;
-
     vga_printf("Boot OK\n");
     // TODO
 }

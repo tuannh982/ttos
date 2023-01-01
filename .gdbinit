@@ -3,3 +3,4 @@ file target/bootstrap.bin
 target remote localhost:1234
 layout split
 break _start
+break _start64

@@ -1,5 +1,5 @@
-#ifndef PGTABLE_H
-#define PGTABLE_H
+#ifndef BOOT_PGTABLE_H
+#define BOOT_PGTABLE_H
 
 #define PAGE_BIT_PRESENT 0       // page present
 #define PAGE_BIT_RW 1            // page writeable
@@ -8,7 +8,7 @@
 #define PAGE_BIT_DISABLE_CACHE 4 // page cache disabled
 #define PAGE_BIT_ACCESSED 5      // page was accessed, raised by CPU
 #define PAGE_BIT_DIRTY 6         // page was written, raised by CPU
-#define PAGE_BIT_HUGEPAGE        // huge page
+#define PAGE_BIT_HUGEPAGE 7      // huge page
 
 #define PAGE_PRESENT (1 << PAGE_BIT_PRESENT)
 #define PAGE_RW (1 << PAGE_BIT_RW)
