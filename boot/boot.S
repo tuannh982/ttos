@@ -1,5 +1,6 @@
 #define ASM_FILE 1
 #include <boot/multiboot.h>
+#include <boot/pgtable.h>
 
 /* The size of our stack (16KB). */
 #define STACK_SIZE 0x4000
@@ -43,6 +44,17 @@ multiboot_header:
 # ------------------------------------------------------
 .section .bss
 
+.align 4096
+/* 64bit paging, 4KB per page, https://wiki.osdev.org/Page_Tables */
+page_table_pml4:
+.skip 4096
+page_table_pdp:
+.skip 4096
+page_table_pd:
+.skip 4096
+page_table_pt:
+.skip 4096
+
 .align 16
 stack_bottom:
 .skip STACK_SIZE
@@ -70,6 +82,9 @@ _start:
     call    loader_init
     call    check_multiboot
     call    check_long_mode
+
+    call    setup_page_tables
+    # TODO enable paging
     # TODO setup long mode
 
     /* switch to 64bit mode */
@@ -137,6 +152,39 @@ check_long_mode:
     _no_long_mode:
         pushl   $no_long_mode_message
         jmp     print_and_halted
+
+setup_page_tables:
+    /* write first P3 (PDP) entry to P4 (PML4) table */
+    movl    $page_table_pdp, %eax
+    orl     $(PAGE_PRESENT | PAGE_RW), %eax
+    movl    %eax, page_table_pml4
+    /* write first P2 (PD) entry to P3 (PDP) table */
+    movl    $page_table_pd, %eax
+    orl     $(PAGE_PRESENT | PAGE_RW), %eax
+    movl    %eax, page_table_pdp
+    /* write first P1 (PT) entry to P2 (PD) table */
+    movl    $page_table_pt, %eax
+    orl     $(PAGE_PRESENT | PAGE_RW), %eax
+    movl    %eax, page_table_pd
+
+    /* map P1 (PT) table entries */
+    map_pt_table:
+        movl    $page_table_pt, %ebx
+        movl    $0, %ecx
+        /* do a loop to map P1 (PT) table entries */
+        map_pt_table_loop:
+            /* 4096 */
+            movl    $0x1000, %eax
+            /* P1 table, don't enable HUGEPAGE bit */
+            orl     $(PAGE_PRESENT | PAGE_RW), %eax 
+            movl    %eax, (%ebx)
+            /* loop unti we've filled 512 entries, or 2MB */
+            addl    $0x8, %ebx
+            incl    %ecx
+            cmpl    $512, %eax
+            jne     map_pt_table_loop
+
+    ret
 
 print_and_halted:
     call    vga_printf
