@@ -1,10 +1,6 @@
 #define ASM_FILE 1
 #include <boot/multiboot.h>
-
-/* The size of our stack (16KB). */
-#define STACK_SIZE 0x4000
-
-#define MULTIBOOT_HEADER_FLAGS MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO
+#include <boot/pgtable.h>
 
 # ------------------------------------------------------
 .section .multiboot
@@ -27,6 +23,7 @@ multiboot_header:
     # 40	u32	height	if flags[2] is set
     # 44	u32	depth	if flags[2] is set
     
+    #define MULTIBOOT_HEADER_FLAGS MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO
     .long   MULTIBOOT_HEADER_MAGIC
     .long   MULTIBOOT_HEADER_FLAGS
     .long -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)
@@ -43,7 +40,20 @@ multiboot_header:
 # ------------------------------------------------------
 .section .bss
 
+.align 4096
+/* 64bit paging, 4KB per page, https://wiki.osdev.org/Page_Tables */
+page_table_pml4:
+.skip 4096
+page_table_pdp:
+.skip 4096
+page_table_pd:
+.skip 4096
+page_table_pt:
+.skip 4096
+
 .align 16
+/* The size of our stack (16KB). */
+#define STACK_SIZE 0x4000
 stack_bottom:
 .skip STACK_SIZE
 stack_top:
@@ -70,7 +80,8 @@ _start:
     call    loader_init
     call    check_multiboot
     call    check_long_mode
-    # TODO setup long mode
+    call    enter_long_mode
+    # TODO setup GDT
 
     /* switch to 64bit mode */
     # .code64
@@ -138,6 +149,82 @@ check_long_mode:
         pushl   $no_long_mode_message
         jmp     print_and_halted
 
+/* https://wiki.osdev.org/Long_Mode */
+enter_long_mode:
+    # Steps to entering long mode
+    # - Disable paging
+    # - Setup new page tables
+    # - Set the PAE enable bit in CR4
+    # - Load CR3 with the physical address of the PML4 (Level 4 Page Map)
+    # - Enable long mode by setting the LME flag (bit 8) in MSR 0xC0000080 (aka EFER)
+    # - Enable paging
+
+    #define CR0_BIT_ENABLE_PAGING 31
+    #define CR4_BIT_PAE 5
+    #define EFER_BIT_LME 8
+
+    /* Disable paging */
+    cr0_disable_paging:
+        movl    %cr0, %eax
+        andl    $(~(1 << CR0_BIT_ENABLE_PAGING)), %eax
+        movl    %eax, %cr0
+    
+    /* Setup new page tables */
+    setup_page_tables:
+        /* write first P3 (PDP) entry to P4 (PML4) table */
+        movl    $page_table_pdp, %eax
+        orl     $(PAGE_PRESENT | PAGE_RW), %eax
+        movl    %eax, page_table_pml4
+        /* write first P2 (PD) entry to P3 (PDP) table */
+        movl    $page_table_pd, %eax
+        orl     $(PAGE_PRESENT | PAGE_RW), %eax
+        movl    %eax, page_table_pdp
+        /* write first P1 (PT) entry to P2 (PD) table */
+        movl    $page_table_pt, %eax
+        orl     $(PAGE_PRESENT | PAGE_RW), %eax
+        movl    %eax, page_table_pd
+
+        /* map P1 (PT) table entries */
+        map_pt_table:
+            movl    $page_table_pt, %ebx
+            movl    $0, %ecx
+            /* do a loop to map P1 (PT) table entries */
+            map_pt_table_loop:
+                /* 4096 */
+                movl    $0x1000, %eax
+                /* P1 table, don't enable HUGEPAGE bit */
+                orl     $(PAGE_PRESENT | PAGE_RW), %eax 
+                movl    %eax, (%ebx)
+                /* loop unti we've filled 512 entries, or 2MB */
+                addl    $0x8, %ebx
+                incl    %ecx
+                cmpl    $512, %ecx
+                jne     map_pt_table_loop
+
+    /* Set the PAE enable bit in CR4 */
+    cr4_enable_pae:
+        movl    %cr4, %eax
+        orl     (1 << CR4_BIT_PAE), %eax
+        movl    %eax, %cr4
+
+    /* Load CR3 with the physical address of the PML4 (Level 4 Page Map) */
+    cr3_load_page_table:
+        movl    $page_table_pml4, %eax
+        movl    %eax, %cr3
+
+    /* Enable long mode by setting the LME flag (bit 8) in MSR 0xC0000080 (aka EFER) */
+    msr_enable_long_mode:
+        movl    $0xC0000080, %ecx
+        rdmsr
+        orl     $(1 << EFER_BIT_LME), %eax
+        wrmsr
+
+    /* Enable paging */
+    cr0_enable_paging:
+        movl    %cr0, %eax
+        orl     $(1 << CR0_BIT_ENABLE_PAGING), %eax
+        movl    %eax, %cr0
+
 print_and_halted:
     call    vga_printf
     jmp     halted
@@ -156,3 +243,9 @@ no_long_mode_message:
     .asciz  "Long Mode not supported\n"
 
 .size _start, . - _start
+
+
+# ------------------------------------------------------
+.code64
+
+_start64:
