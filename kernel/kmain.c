@@ -1,4 +1,7 @@
 #include <boot/multiboot.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 void kmain(multiboot_info_t *mbi);
 

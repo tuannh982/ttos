@@ -75,16 +75,13 @@ _start:
 
     /* Push the pointer to the Multiboot information structure. */
     pushl   %ebx
-    /* Push the magic value. */
-    pushl   %eax
-
-    call    loader_init
 
     /* Perform checks for 64bit mode supports */    
     call    check_multiboot
     call    check_long_mode
 
     /* Load kernel module to memory */
+    call    loader_init
     call    load_kernel_module
 
 halted:
@@ -111,7 +108,7 @@ enter_kernel:
 /* check multiboot routine */
 check_multiboot:
     /* compare the magic value with the previous saved eax */
-    cmpl    $MULTIBOOT_BOOTLOADER_MAGIC, 4(%esp)
+    cmpl    $MULTIBOOT_BOOTLOADER_MAGIC, %eax
     jne     _no_multiboot
     ret
     _no_multiboot:
@@ -288,8 +285,6 @@ _start64:
 
     /* Since we've rebase the stack, now the arguments are located at EBP + 8 and EBP + 12 */
     mov     8(%ebp), %eax
-    /* Trick the processor to load 64bit address */
-    .long   0
 
     /* The multiboot information */
     mov     12(%ebp), %edi

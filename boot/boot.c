@@ -10,7 +10,7 @@ extern void enter_long_mode();
 extern void enter_kernel(uint32_t kernel_entry, uint32_t mbi);
 
 void loader_init();
-void load_kernel_module(uint32_t magic, multiboot_info_t *mbi);
+void load_kernel_module(multiboot_info_t *mbi);
 
 static uint64_t load_kernel_image(multiboot_info_t *mbi);
 static uint64_t load_elf_module(multiboot_uint32_t mod_start);
@@ -22,7 +22,7 @@ void loader_init()
     vga_clear();
 }
 
-void load_kernel_module(uint32_t magic, multiboot_info_t *mbi)
+void load_kernel_module(multiboot_info_t *mbi)
 {
     uint64_t kernel_entry = load_kernel_image(mbi);
     enter_long_mode();

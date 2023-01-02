@@ -19,7 +19,7 @@ GRUB_FILE:=$(BUILD_ENV_X86_64) grub-file
 GRUB_MKRESCUE:=$(BUILD_ENV_X86_64) grub-mkrescue
 # flags
 BOOT_CFLAGS:=$(BOOT_CFLAGS) -I include -std=gnu99 -ffreestanding -O2 -Wall -Wextra -ggdb
-KERNEL_CFLAGS:=$(KERNEL_CFLAGS)-I include -m64 -z max-page-size=0x1000 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -std=gnu99 -O2 -Wall -Wextra -ggdb
+KERNEL_CFLAGS:=$(KERNEL_CFLAGS)-I include -ffreestanding -m64 -z max-page-size=0x1000 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -std=gnu99 -O2 -Wall -Wextra -ggdb
 CLDFLAGS:=$(CLDFLAGS) -ffreestanding -O2 -nostdlib -lgcc -ggdb
 
 BOOT_OBJS = \
