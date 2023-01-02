@@ -19,6 +19,7 @@ GRUB_FILE:=$(BUILD_ENV_X86_64) grub-file
 GRUB_MKRESCUE:=$(BUILD_ENV_X86_64) grub-mkrescue
 # flags
 BOOT_CFLAGS:=$(BOOT_CFLAGS) -I include -std=gnu99 -ffreestanding -O2 -Wall -Wextra -ggdb
+KERNEL_CFLAGS:=$(KERNEL_CFLAGS)-I include -std=gnu99 -ffreestanding -O2 -Wall -Wextra -ggdb -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2
 CLDFLAGS:=$(CLDFLAGS) -ffreestanding -O2 -nostdlib -lgcc -ggdb
 
 BOOT_OBJS = \
@@ -27,10 +28,16 @@ BOOT_OBJS = \
 	boot/vga_utils.c.o \
 	boot/boot.c.o \
 
+KERNEL_OBJS = \
+	kernel/main.c.o
+
 .PHONY: all clean run-debug run-kernel run-iso
 .SUFFIXES: .o .c .S .cpp
 
 # bootstrap
+
+kernel/%.c.o: kernel/%.c
+	$(CC64) $(KERNEL_CFLAGS) -c $< -o $@
 
 boot/%.c.o: boot/%.c
 	$(CC32) $(BOOT_CFLAGS) -c $< -o $@
@@ -43,12 +50,15 @@ bootstrap.bin: $(BOOT_OBJS)
 	$(CC32) -T linker.ld -o target/$@ $(CLDFLAGS) $(BOOT_OBJS) 
 	$(GRUB_FILE) --is-x86-multiboot target/bootstrap.bin
 
-# kernel: TODO
+kernel.bin: $(KERNEL_OBJS)
+	mkdir -p target
+	$(CC64) -T linker.ld -o target/$@ $(CLDFLAGS) $(KERNEL_OBJS) 
 
-os.iso: bootstrap.bin
+os.iso: bootstrap.bin kernel.bin
 	mkdir -p target/iso/boot/grub
 	cp boot/grub.cfg target/iso/boot/grub/grub.cfg
 	cp target/bootstrap.bin target/iso/boot/bootstrap.bin
+	cp target/kernel.bin target/iso/boot/kernel.bin
 	$(GRUB_MKRESCUE) -o target/os.iso target/iso
 
 all: os.iso

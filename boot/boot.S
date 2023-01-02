@@ -73,8 +73,8 @@ _start:
     /* Clear interrupts */
     cli
     /* Setup stack */
-    movl $stack_top, %esp
-    movl $stack_top, %ebp
+    movl    $stack_top, %esp
+    movl    $stack_top, %ebp
 
     /* Push the pointer to the Multiboot information structure. */
     pushl   %ebx
@@ -82,13 +82,18 @@ _start:
     pushl   %eax
 
     call    loader_init
-    
+
+    /* Perform checks for 64bit mode supports */    
     call    check_multiboot
     call    check_long_mode
 
-    call    enter_long_mode
-
-    /* Loading The Global Descriptor Table */
+    /* Load kernel module to memory */
+    call    load_kernel_module
+    
+    /* Re-setup stack */
+    pushl   %ebp
+    mov     %esp, %ebp
+    /* Loading the Global Descriptor Table */
     lgdt    gdt64_pointer
 
     /* perform a long jump */
@@ -155,6 +160,7 @@ check_long_mode:
         pushl   $no_long_mode_message
         jmp     print_and_halted
 
+.global enter_long_mode
 /* https://wiki.osdev.org/Long_Mode */
 enter_long_mode:
     # Steps to entering long mode
@@ -238,7 +244,10 @@ enter_long_mode:
 gdt64:
     .quad 0
 gdt64_code_segment:
+    /* code descriptor: executable, descriptor, present, long mode */
     .quad GDT_SEGMENT_DESCRIPTOR_ACCESS_E | GDT_SEGMENT_DESCRIPTOR_ACCESS_S | GDT_SEGMENT_DESCRIPTOR_ACCESS_P | GDT_SEGMENT_DESCRIPTOR_FLAGS_L
+    /* data descriptor: writable, descriptor, present */
+    .quad GDT_SEGMENT_DESCRIPTOR_BIT_ACCESS_RW | GDT_SEGMENT_DESCRIPTOR_ACCESS_S | GDT_SEGMENT_DESCRIPTOR_ACCESS_P
 gdt64_end:
 .align 16
 gdt64_pointer:
