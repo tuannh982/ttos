@@ -50,7 +50,7 @@ void printf(const char *format, ...);
 
 void loader_init()
 {
-    /* Nothing */
+    /* Nothing to initialize */
 }
 
 /* Check if MAGIC is valid and print the Multiboot information structure

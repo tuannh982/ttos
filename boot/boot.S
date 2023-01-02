@@ -52,8 +52,6 @@ page_table_pdp:
 .skip 4096
 page_table_pd:
 .skip 4096
-page_table_pt:
-.skip 4096
 
 /* Stack */
 .align 16
@@ -67,32 +65,24 @@ stack_top:
 .section .text
 
 .global _start
-.global _start64
 .type _start, @function
 _start:
     /* Clear interrupts */
     cli
     /* Setup stack */
-    movl $stack_top, %esp
-    movl $stack_top, %ebp
+    movl    $stack_top, %esp
+    movl    $stack_top, %ebp
 
     /* Push the pointer to the Multiboot information structure. */
     pushl   %ebx
-    /* Push the magic value. */
-    pushl   %eax
 
-    call    loader_init
-    
+    /* Perform checks for 64bit mode supports */    
     call    check_multiboot
     call    check_long_mode
 
-    call    enter_long_mode
-
-    /* Loading The Global Descriptor Table */
-    lgdt    gdt64_pointer
-
-    /* perform a long jump */
-    ljmp    $8, $_start64
+    /* Load kernel module to memory */
+    call    loader_init
+    call    load_kernel_module
 
 halted:
     pushl   $halted_message
@@ -102,10 +92,23 @@ hlt_loop:
     hlt
     jmp     hlt_loop
 
+.global enter_kernel
+enter_kernel:
+    /* Save the old base stack address */
+    pushl   %ebp
+    /* Rebase the stack */
+    mov     %esp, %ebp
+
+    /* Loading the Global Descriptor Table */
+    lgdt    gdt64_pointer
+
+    /* perform a long jump */
+    ljmp    $8, $_start64
+
 /* check multiboot routine */
 check_multiboot:
     /* compare the magic value with the previous saved eax */
-    cmpl    $MULTIBOOT_BOOTLOADER_MAGIC, 4(%esp)
+    cmpl    $MULTIBOOT_BOOTLOADER_MAGIC, %eax
     jne     _no_multiboot
     ret
     _no_multiboot:
@@ -155,6 +158,7 @@ check_long_mode:
         pushl   $no_long_mode_message
         jmp     print_and_halted
 
+.global enter_long_mode
 /* https://wiki.osdev.org/Long_Mode */
 enter_long_mode:
     # Steps to entering long mode
@@ -185,27 +189,23 @@ enter_long_mode:
         mov     $page_table_pd, %eax
         or      $(PAGE_PRESENT | PAGE_RW), %eax
         mov     %eax, page_table_pdp
-        /* write first P1 (PT) entry to P2 (PD) table */
-        mov     $page_table_pt, %eax
-        or      $(PAGE_PRESENT | PAGE_RW), %eax
-        mov     %eax, page_table_pd
 
-        /* map P1 (PT) table entries */
-        map_pt_table:
+        /* map P2 (PD) table entries */
+        map_pd_table:
             /* P1 table, don't enable HUGEPAGE bit */
-            mov     $(PAGE_PRESENT | PAGE_RW), %eax
-            mov     $page_table_pt, %ebx
+            mov     $(PAGE_PRESENT | PAGE_RW | PAGE_HUGEPAGE), %eax
+            mov     $page_table_pd, %ebx
             mov     $0, %ecx
-            /* do a loop to map P1 (PT) table entries */
-            map_pt_table_loop:
+            /* do a loop to map P2 (PD) table entries */
+            map_pd_table_loop:
                 mov     %eax, (%ebx)
-                /* 4096 */
-                add     $0x1000, %eax
-                /* loop unti we've filled 512 entries, or 2MB */
+                /* 2 MB */
+                add     $0x200000, %eax
+                /* loop unti we've filled 512 entries */
                 add     $0x8, %ebx
                 inc     %ecx
                 cmp     $512, %ecx
-                jne     map_pt_table_loop
+                jne     map_pd_table_loop
 
     /* Set the PAE enable bit in CR4 */
     cr4_enable_pae:
@@ -238,7 +238,10 @@ enter_long_mode:
 gdt64:
     .quad 0
 gdt64_code_segment:
+    /* code descriptor: executable, descriptor, present, long mode */
     .quad GDT_SEGMENT_DESCRIPTOR_ACCESS_E | GDT_SEGMENT_DESCRIPTOR_ACCESS_S | GDT_SEGMENT_DESCRIPTOR_ACCESS_P | GDT_SEGMENT_DESCRIPTOR_FLAGS_L
+    /* data descriptor: writable, descriptor, present */
+    .quad GDT_SEGMENT_DESCRIPTOR_BIT_ACCESS_RW | GDT_SEGMENT_DESCRIPTOR_ACCESS_S | GDT_SEGMENT_DESCRIPTOR_ACCESS_P
 gdt64_end:
 .align 16
 gdt64_pointer:
@@ -279,27 +282,15 @@ _start64:
         mov     %ax, %es
         mov     %ax, %fs
         mov     %ax, %gs
-    
-    # Hello 64bit mode
-    push    %rax
-    push    %rcx
-    mov     $0xb8000, %rcx
-    mov     $0x2F492F532F4E2F49, %rax
-    mov     %rax, (%rcx)
-    add     $8, %rcx
-    mov     $0x2F362F202F452F44, %rax
-    mov     %rax, (%rcx)
-    add     $8, %rcx
-    mov     $0x2F542F492F422F34, %rax
-    mov     %rax, (%rcx)
-    add     $8, %rcx
-    mov     $0x2F542F4E2F452F20, %rax
-    mov     %rax, (%rcx)
-    add     $8, %rcx
-    mov     $0x2F592F52, %rax
-    mov     %rax, (%rcx)
-    pop     %rcx
-    pop     %rax
+
+    /* Since we've rebase the stack, now the arguments are located at EBP + 8 and EBP + 12 */
+    mov     8(%ebp), %eax
+
+    /* The multiboot information */
+    mov     12(%ebp), %edi
+
+    /* Jump to our kernel main*/
+    call    *(%eax)
 
 hlt64_loop:   
     hlt
