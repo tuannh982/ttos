@@ -52,8 +52,6 @@ page_table_pdp:
 .skip 4096
 page_table_pd:
 .skip 4096
-page_table_pt:
-.skip 4096
 
 /* Stack */
 .align 16
@@ -67,7 +65,6 @@ stack_top:
 .section .text
 
 .global _start
-.global _start64
 .type _start, @function
 _start:
     /* Clear interrupts */
@@ -89,15 +86,6 @@ _start:
 
     /* Load kernel module to memory */
     call    load_kernel_module
-    
-    /* Re-setup stack */
-    pushl   %ebp
-    mov     %esp, %ebp
-    /* Loading the Global Descriptor Table */
-    lgdt    gdt64_pointer
-
-    /* perform a long jump */
-    ljmp    $8, $_start64
 
 halted:
     pushl   $halted_message
@@ -106,6 +94,19 @@ halted:
 hlt_loop:   
     hlt
     jmp     hlt_loop
+
+.global enter_kernel
+enter_kernel:
+    /* Save the old base stack address */
+    pushl   %ebp
+    /* Rebase the stack */
+    mov     %esp, %ebp
+
+    /* Loading the Global Descriptor Table */
+    lgdt    gdt64_pointer
+
+    /* perform a long jump */
+    ljmp    $8, $_start64
 
 /* check multiboot routine */
 check_multiboot:
@@ -191,27 +192,23 @@ enter_long_mode:
         mov     $page_table_pd, %eax
         or      $(PAGE_PRESENT | PAGE_RW), %eax
         mov     %eax, page_table_pdp
-        /* write first P1 (PT) entry to P2 (PD) table */
-        mov     $page_table_pt, %eax
-        or      $(PAGE_PRESENT | PAGE_RW), %eax
-        mov     %eax, page_table_pd
 
-        /* map P1 (PT) table entries */
-        map_pt_table:
+        /* map P2 (PD) table entries */
+        map_pd_table:
             /* P1 table, don't enable HUGEPAGE bit */
-            mov     $(PAGE_PRESENT | PAGE_RW), %eax
-            mov     $page_table_pt, %ebx
+            mov     $(PAGE_PRESENT | PAGE_RW | PAGE_HUGEPAGE), %eax
+            mov     $page_table_pd, %ebx
             mov     $0, %ecx
-            /* do a loop to map P1 (PT) table entries */
-            map_pt_table_loop:
+            /* do a loop to map P2 (PD) table entries */
+            map_pd_table_loop:
                 mov     %eax, (%ebx)
-                /* 4096 */
-                add     $0x1000, %eax
-                /* loop unti we've filled 512 entries, or 2MB */
+                /* 2 MB */
+                add     $0x200000, %eax
+                /* loop unti we've filled 512 entries */
                 add     $0x8, %ebx
                 inc     %ecx
                 cmp     $512, %ecx
-                jne     map_pt_table_loop
+                jne     map_pd_table_loop
 
     /* Set the PAE enable bit in CR4 */
     cr4_enable_pae:
@@ -288,27 +285,17 @@ _start64:
         mov     %ax, %es
         mov     %ax, %fs
         mov     %ax, %gs
-    
-    # Hello 64bit mode
-    push    %rax
-    push    %rcx
-    mov     $0xb8000, %rcx
-    mov     $0x2F492F532F4E2F49, %rax
-    mov     %rax, (%rcx)
-    add     $8, %rcx
-    mov     $0x2F362F202F452F44, %rax
-    mov     %rax, (%rcx)
-    add     $8, %rcx
-    mov     $0x2F542F492F422F34, %rax
-    mov     %rax, (%rcx)
-    add     $8, %rcx
-    mov     $0x2F542F4E2F452F20, %rax
-    mov     %rax, (%rcx)
-    add     $8, %rcx
-    mov     $0x2F592F52, %rax
-    mov     %rax, (%rcx)
-    pop     %rcx
-    pop     %rax
+
+    /* Since we've rebase the stack, now the arguments are located at EBP + 8 and  EBP + 12 */
+    mov     8(%ebp), %eax
+    /* Trick the processor to load 64bit address */
+    .long   0
+
+    /* The multiboot information */
+    mov     12(%ebp), %edi
+
+    /* Jump to our kernel main*/
+    jmp     *(%eax)
 
 hlt64_loop:   
     hlt

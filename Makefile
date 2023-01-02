@@ -19,7 +19,7 @@ GRUB_FILE:=$(BUILD_ENV_X86_64) grub-file
 GRUB_MKRESCUE:=$(BUILD_ENV_X86_64) grub-mkrescue
 # flags
 BOOT_CFLAGS:=$(BOOT_CFLAGS) -I include -std=gnu99 -ffreestanding -O2 -Wall -Wextra -ggdb
-KERNEL_CFLAGS:=$(KERNEL_CFLAGS)-I include -std=gnu99 -ffreestanding -O2 -Wall -Wextra -ggdb -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2
+KERNEL_CFLAGS:=$(KERNEL_CFLAGS)-I include -m64 -z max-page-size=0x1000 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -std=gnu99 -O2 -Wall -Wextra -ggdb
 CLDFLAGS:=$(CLDFLAGS) -ffreestanding -O2 -nostdlib -lgcc -ggdb
 
 BOOT_OBJS = \
@@ -29,7 +29,7 @@ BOOT_OBJS = \
 	boot/boot.c.o \
 
 KERNEL_OBJS = \
-	kernel/main.c.o
+	kernel/kmain.c.o \
 
 .PHONY: all clean run-debug run-kernel run-iso
 .SUFFIXES: .o .c .S .cpp
@@ -37,6 +37,9 @@ KERNEL_OBJS = \
 # bootstrap
 
 kernel/%.c.o: kernel/%.c
+	$(CC64) $(KERNEL_CFLAGS) -c $< -o $@
+
+kernel/%.S.o: kernel/%.S
 	$(CC64) $(KERNEL_CFLAGS) -c $< -o $@
 
 boot/%.c.o: boot/%.c
@@ -47,12 +50,12 @@ boot/%.S.o: boot/%.S
 
 bootstrap.bin: $(BOOT_OBJS)
 	mkdir -p target
-	$(CC32) -T linker.ld -o target/$@ $(CLDFLAGS) $(BOOT_OBJS) 
+	$(CC32) -T boot/linker.ld -o target/$@ $(CLDFLAGS) $(BOOT_OBJS) 
 	$(GRUB_FILE) --is-x86-multiboot target/bootstrap.bin
 
 kernel.bin: $(KERNEL_OBJS)
 	mkdir -p target
-	$(CC64) -T linker.ld -o target/$@ $(CLDFLAGS) $(KERNEL_OBJS) 
+	$(CC64) -T kernel/linker.ld -o target/$@ $(CLDFLAGS) $(KERNEL_OBJS) 
 
 os.iso: bootstrap.bin kernel.bin
 	mkdir -p target/iso/boot/grub
