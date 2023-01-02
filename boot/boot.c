@@ -74,7 +74,6 @@ static uint64_t load_elf_module(multiboot_uint32_t mod_start)
         vga_printf("program_header = 0x%x, program_address = 0x%x\n", program_header, program_address);
         memcpy(program_address, image + program_header->p_offset, program_header->p_filesz);
     }
-    vga_printf("Boot OK, Shutup\n");
     return elf_header->e_entry;
 }
 

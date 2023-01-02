@@ -286,7 +286,7 @@ _start64:
         mov     %ax, %fs
         mov     %ax, %gs
 
-    /* Since we've rebase the stack, now the arguments are located at EBP + 8 and  EBP + 12 */
+    /* Since we've rebase the stack, now the arguments are located at EBP + 8 and EBP + 12 */
     mov     8(%ebp), %eax
     /* Trick the processor to load 64bit address */
     .long   0
