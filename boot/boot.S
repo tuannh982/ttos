@@ -290,7 +290,7 @@ _start64:
     mov     12(%ebp), %edi
 
     /* Jump to our kernel main*/
-    jmp     *(%eax)
+    call    *(%eax)
 
 hlt64_loop:   
     hlt

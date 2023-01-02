@@ -32,8 +32,5 @@ void kmain(multiboot_info_t *mbi)
         "add     $8, %rcx\n\t"
         "pop     %rcx\n\t"
         "pop     %rax\n\t");
-    for (;;)
-    {
-    }
     return;
 }
