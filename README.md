@@ -1,5 +1,7 @@
-\# Name TBD
+\# Why I have to create a name for this?
 ====
+
+Just a x86-64 toy kernel, don't care about it
 
 ## Prerequisites
 - qemu-system-x86_64
